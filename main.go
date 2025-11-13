@@ -229,7 +229,7 @@ func (k *keycloakAuth) redirectToKeycloak(rw http.ResponseWriter, req *http.Requ
 	stateBytes, _ := json.Marshal(state)
 	stateBase64 := base64.StdEncoding.EncodeToString(stateBytes)
 
-	redirectURL := k.KeycloakURL.JoinPath(
+	redirectURL := k.KeycloakFrontendURL.JoinPath(
 		"realms",
 		k.KeycloakRealm,
 		"protocol",
