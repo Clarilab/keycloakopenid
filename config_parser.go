@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	KeycloakURL             string `json:"url"`
+	KeycloakFrontendURL     string `json:"frontend_url"`
 	ClientID                string `json:"client_id"`
 	ClientSecret            string `json:"client_secret"`
 	KeycloakRealm           string `json:"keycloak_realm"`
@@ -25,21 +26,23 @@ type Config struct {
 	ConditionalAccessClaim  string `json:"conditional_access_claim"`
 	ConditionalAccessRegexp string `json:"conditional_access_regex"`
 
-	ClientIDFile          string `json:"client_id_file"`
-	ClientSecretFile      string `json:"client_secret_file"`
-	KeycloakURLEnv        string `json:"url_env"`
-	ClientIDEnv           string `json:"client_id_env"`
-	ClientSecretEnv       string `json:"client_secret_env"`
-	KeycloakRealmEnv      string `json:"keycloak_realm_env"`
-	ScopeEnv              string `json:"scope_env"`
-	TokenCookieNameEnv    string `json:"token_cookie_name_env"`
-	UseAuthHeaderEnv      string `json:"use_auth_header_env"`
-	IgnorePathPrefixesEnv string `json:"ignore_path_prefixes_env"`
+	ClientIDFile           string `json:"client_id_file"`
+	ClientSecretFile       string `json:"client_secret_file"`
+	KeycloakURLEnv         string `json:"url_env"`
+	KeycloakFrontendURLEnv string `json:"frontend_url_env"`
+	ClientIDEnv            string `json:"client_id_env"`
+	ClientSecretEnv        string `json:"client_secret_env"`
+	KeycloakRealmEnv       string `json:"keycloak_realm_env"`
+	ScopeEnv               string `json:"scope_env"`
+	TokenCookieNameEnv     string `json:"token_cookie_name_env"`
+	UseAuthHeaderEnv       string `json:"use_auth_header_env"`
+	IgnorePathPrefixesEnv  string `json:"ignore_path_prefixes_env"`
 }
 
 type keycloakAuth struct {
 	next                    http.Handler
 	KeycloakURL             *url.URL
+	KeycloakFrontendURL     *url.URL
 	ClientID                string
 	ClientSecret            string
 	KeycloakRealm           string
@@ -118,6 +121,13 @@ func readConfigEnv(config *Config) error {
 		}
 		config.KeycloakURL = strings.TrimSpace(keycloakUrl)
 	}
+	if config.KeycloakFrontendURLEnv != "" {
+		keycloakFrontendURL := os.Getenv(config.KeycloakFrontendURLEnv)
+		if keycloakFrontendURL == "" {
+			return errors.New("KeycloakFrontendURLEnv referenced but NOT set")
+		}
+		config.KeycloakFrontendURL = strings.TrimSpace(keycloakFrontendURL)
+	}
 	if config.ClientIDEnv != "" {
 		clientId := os.Getenv(config.ClientIDEnv)
 		if clientId == "" {
@@ -190,6 +200,15 @@ func New(uctx context.Context, next http.Handler, config *Config, name string) (
 		return nil, err
 	}
 
+	// use public keycloak url only if set
+	parsedFrontendURL := parsedURL
+	if config.KeycloakFrontendURL != "" {
+		parsedFrontendURL, err = parseUrl(config.KeycloakFrontendURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if config.Scope == "" {
 		config.Scope = "openid"
 	}
@@ -231,6 +250,7 @@ func New(uctx context.Context, next http.Handler, config *Config, name string) (
 	return &keycloakAuth{
 		next:                    next,
 		KeycloakURL:             parsedURL,
+		KeycloakFrontendURL:     parsedFrontendURL,
 		ClientID:                config.ClientID,
 		ClientSecret:            config.ClientSecret,
 		KeycloakRealm:           config.KeycloakRealm,
